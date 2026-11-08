@@ -40,3 +40,20 @@ publics (corsproxy.io, allorigins), moins fiables. Sans cours disponibles, elle 
 Les opérations par défaut sont dans `data/operations_bourse.csv` (copie embarquée dans `data.js`).
 Le bouton **Importer un CSV** permet de charger un fichier mis à jour (mêmes colonnes) ; il est mémorisé dans le navigateur.
 Pour mettre à jour les données par défaut : `{ printf 'window.DEFAULT_CSV = \`'; cat data/operations_bourse.csv; printf '\`;\n'; } > data.js`
+
+## Sur smartphone (Android) — GitHub Pages
+
+Le workflow `.github/workflows/pages.yml` publie l'application sur GitHub Pages à chaque push.
+**La version en ligne n'embarque pas vos opérations** (`data/` et `data.js` sont exclus) : sur chaque
+appareil, on importe son CSV une fois, il est conservé uniquement dans le navigateur de l'appareil.
+
+Mise en place (une seule fois) :
+1. Sur GitHub : *Settings → Pages → Build and deployment → Source : **GitHub Actions***.
+   (Pour un dépôt privé, GitHub Pages nécessite un compte GitHub Pro ; sinon rendre le dépôt public
+   — dans ce cas pensez à retirer `data/operations_bourse.csv` et à vider `data.js`.)
+2. *Actions → Déploiement GitHub Pages → Run workflow* (ou pousser un commit).
+3. Ouvrir l'adresse affichée (`https://<utilisateur>.github.io/<dépôt>/`) dans Chrome sur Android,
+   importer `operations_bourse.csv`, puis menu ⋮ → **Ajouter à l'écran d'accueil**.
+
+Les cours en direct passent alors par des relais publics (corsproxy.io, allorigins, codetabs) :
+s'ils sont indisponibles, l'application garde les derniers cours connus / saisis.

@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Suivi PEA</title>
+  <meta name="theme-color" content="#2f6fde">
+  <meta name="description" content="Suivi de portefeuille PEA et projection DCA">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 </head>
@@ -29,6 +34,13 @@
   </header>
 
   <main>
+    <section id="welcome" class="card welcome">
+      <h2>Bienvenue 👋</h2>
+      <p>Aucune donnée sur cet appareil pour l'instant. Importez votre fichier <code>operations_bourse.csv</code> :
+        il reste enregistré <strong>uniquement sur ce téléphone</strong>, rien n'est envoyé en ligne.</p>
+      <label class="btn primary" for="csvInput">Importer mon CSV</label>
+      <p class="muted small">Astuce Android : dans Chrome, menu ⋮ → « Ajouter à l'écran d'accueil » pour l'installer comme une application.</p>
+    </section>
     <!-- ===== SUIVI ===== -->
     <section id="tab-suivi" class="tab-panel active">
       <div class="kpis" id="kpis"></div>

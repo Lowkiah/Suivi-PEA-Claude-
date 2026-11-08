@@ -117,6 +117,7 @@
     { name: 'Yahoo direct', url: yahooUrl },
     { name: 'proxy corsproxy.io', url: (s, q) => `https://corsproxy.io/?url=${encodeURIComponent(yahooUrl(s, q))}` },
     { name: 'proxy allorigins', url: (s, q) => `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl(s, q))}` },
+    { name: 'proxy codetabs', url: (s, q) => `https://api.codetabs.com/v1/proxy/?quest=${encodeURIComponent(yahooUrl(s, q))}` },
   ];
   let preferredSource = 0;
   let lastSourceName = '';
@@ -207,7 +208,7 @@
     const t = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
     if (live === open.length && live > 0) setLiveStatus('ok', `Cours en direct · ${t}`, `Source : Yahoo Finance via ${lastSourceName}`);
     else if (live > 0) setLiveStatus('partial', `${live}/${open.length} cours en direct · ${t}`, `Source : Yahoo Finance via ${lastSourceName}. Lignes sans cotation : ` + open.filter((p) => !quotes[p.isin]).map((p) => p.ticker).join(', '));
-    else setLiveStatus('err', 'Cours indisponibles', 'Impossible de joindre Yahoo Finance. Lancez « python3 server.py » puis ouvrez http://localhost:8000');
+    else setLiveStatus('err', 'Cours indisponibles', location.hostname.endsWith('github.io') ? 'Yahoo Finance injoignable via les relais publics, nouvel essai dans 60 s' : 'Impossible de joindre Yahoo Finance. Lancez « python3 server.py » puis ouvrez http://localhost:8000');
     refreshValuation(true);
   }
 
@@ -659,8 +660,8 @@
       reader.onload = () => {
         try {
           load(reader.result);
-          refreshQuotes(true);
           try { localStorage.setItem(LS_CSV, reader.result); } catch (err) { /* trop gros ou indisponible */ }
+          onDataLoaded();
         } catch (err) {
           alert('Impossible de lire ce fichier : ' + err.message);
         }
@@ -675,16 +676,31 @@
     }
   }
 
+  let projectionReady = false;
+  function onDataLoaded() {
+    document.body.classList.remove('empty');
+    if (!projectionReady) { initProjection(); projectionReady = true; }
+    renderProjection();
+    refreshQuotes(true);
+  }
+
   function start() {
     initEvents();
     let csv = null;
     try { csv = localStorage.getItem(LS_CSV); } catch (e) { /* ignore */ }
-    try { load(csv || window.DEFAULT_CSV); }
-    catch (e) { load(window.DEFAULT_CSV); }
-    initProjection();
-    renderProjection();
-    refreshQuotes(true);
+    const candidates = [csv, window.DEFAULT_CSV].filter((c) => c && c.trim());
+    let ok = false;
+    for (const c of candidates) {
+      try { load(c); ok = true; break; } catch (e) { /* suivant */ }
+    }
+    if (ok) onDataLoaded();
+    else document.body.classList.add('empty'); // version en ligne : aucune donnée embarquée
     startAutoRefresh();
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  }
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
   }
 
   if (typeof Chart === 'undefined') {

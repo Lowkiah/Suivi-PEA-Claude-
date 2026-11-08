@@ -1,0 +1,43 @@
+name: Déploiement GitHub Pages
+
+on:
+  push:
+    branches: [claude/stock-tracking-app-lt96h1, main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Version publique : on n'embarque PAS les opérations personnelles (data/ et data.js).
+      # Chaque appareil importe son propre CSV, stocké localement dans le navigateur.
+      - name: Construire le site
+        run: |
+          mkdir -p _site/icons
+          cp index.html app.js style.css sw.js manifest.webmanifest _site/
+          cp icons/* _site/icons/
+          echo 'window.DEFAULT_CSV = "";' > _site/data.js
+          # nouvelle version du cache hors-ligne à chaque déploiement
+          sed -i "s/suivi-pea-v1/suivi-pea-${GITHUB_SHA::8}/" _site/sw.js
+          touch _site/.nojekyll
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
