@@ -37,9 +37,11 @@ publics (corsproxy.io, allorigins), moins fiables. Sans cours disponibles, elle 
 
 ## Données
 
-Les opérations par défaut sont dans `data/operations_bourse.csv` (copie embarquée dans `data.js`).
-Le bouton **Importer un CSV** permet de charger un fichier mis à jour (mêmes colonnes) ; il est mémorisé dans le navigateur.
-Pour mettre à jour les données par défaut : `{ printf 'window.DEFAULT_CSV = \`'; cat data/operations_bourse.csv; printf '\`;\n'; } > data.js`
+Aucune opération n'est stockée dans le dépôt (public). Au premier lancement, importez votre CSV avec
+**Importer mon CSV** : il est conservé uniquement dans le navigateur de l'appareil. Pour une mise à jour,
+réimportez le fichier complet. Les fichiers `*.csv` et le dossier `data/` sont ignorés par Git.
+
+Colonnes attendues : `id,date,type_operation,isin,ticker,symbole_yahoo,nom,libelle_courtier,type_actif,categorie,zone_geo,quantite,montant_total_eur,prix_unitaire_eur,devise,compte,courtier,statut_position`.
 
 ## Sur smartphone (Android) — GitHub Pages
 
