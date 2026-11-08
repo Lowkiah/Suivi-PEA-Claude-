@@ -48,4 +48,5 @@ window.DEFAULT_CSV = `﻿id,date,type_operation,isin,ticker,symbole_yahoo,nom,li
 47,2026-05-12,Achat,FR001400U5Q4,DCAM,DCAM.PA,Amundi PEA Monde (MSCI World) UCITS ETF Acc,AM.PEA M.MS.WLD UC.ETF ACC FCP,ETF,ETF Monde,Monde,4,23.35,5.8375,EUR,PEA,Fortuneo,En portefeuille
 48,2026-06-01,Achat,FR001400U5Q4,DCAM,DCAM.PA,Amundi PEA Monde (MSCI World) UCITS ETF Acc,AM.PEA M.MS.WLD UC.ETF ACC FCP,ETF,ETF Monde,Monde,9,54.41,6.0456,EUR,PEA,Fortuneo,En portefeuille
 49,2026-09-02,Achat,FR001400U5Q4,DCAM,DCAM.PA,Amundi PEA Monde (MSCI World) UCITS ETF Acc,AM.PEA M.MS.WLD UC.ETF ACC FCP,ETF,ETF Monde,Monde,8,49.34,6.1675,EUR,PEA,Fortuneo,En portefeuille
+50,2026-10-20,Achat,FR0010820274,ALUNI,ALUNI.PA,Unify Group (ex-Reworld Media),UNIFY GROUP,Action,Actions France (Small caps),France,80,144.39,1.8049,EUR,PEA,Fortuneo,En portefeuille
 `;
