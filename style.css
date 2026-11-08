@@ -148,3 +148,20 @@ tfoot td { font-weight: 600; border-bottom: 0; }
   .chart-box.tall { height: 300px; }
 }
 td:first-child { white-space: normal; min-width: 150px; }
+
+/* Cours en direct */
+.live { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c8); flex: none; }
+.live.ok .dot { background: var(--pos); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pos) 25%, transparent); }
+.live.partial .dot { background: var(--c2); }
+.live.err .dot { background: var(--neg); }
+.live.loading .dot { animation: pulse 1s infinite alternate; }
+@keyframes pulse { from { opacity: 1; } to { opacity: .3; } }
+.btn.icon { padding: 3px 9px; font-size: 15px; line-height: 1.2; }
+.src { font-size: 11px; }
+.live-src { color: var(--pos); }
+.manual-src { color: var(--accent); }
+.buy-src { color: var(--c8); }
+.price-cell { display: inline-flex; align-items: center; gap: 6px; }
+.price-input.live-price { border-color: color-mix(in srgb, var(--pos) 50%, transparent); }
+@media (max-width: 760px) { .live { order: 2; } }

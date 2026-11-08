@@ -18,6 +18,10 @@
       <button class="tab" data-tab="projection" role="tab">Projection DCA</button>
       <button class="tab" data-tab="operations" role="tab">Opérations</button>
     </nav>
+    <div class="live" id="liveStatus" title="État des cours en direct">
+      <span class="dot"></span><span id="liveText">Cours…</span>
+      <button class="btn ghost icon" id="refreshQuotes" title="Actualiser les cours">↻</button>
+    </div>
     <label class="btn file-btn" title="Charger un autre fichier CSV d'opérations">
       Importer un CSV
       <input type="file" id="csvInput" accept=".csv,text/csv" hidden>
@@ -32,7 +36,7 @@
       <div class="card">
         <div class="card-head">
           <h2>Évolution du portefeuille</h2>
-          <span class="muted small">Valeur estimée au dernier prix connu de chaque ligne, cours actuels pour le mois en cours</span>
+          <span class="muted small" id="historyNote"></span>
         </div>
         <div class="chart-box tall"><canvas id="historyChart"></canvas></div>
       </div>
@@ -58,7 +62,7 @@
       <div class="card">
         <div class="card-head">
           <h2>Positions en portefeuille</h2>
-          <span class="muted small">Saisissez le cours actuel de chaque ligne : il est sauvegardé dans le navigateur</span>
+          <span class="muted small"><span class="src live-src">●</span> cours en direct · <span class="src manual-src">●</span> saisi à la main · <span class="src buy-src">●</span> dernier prix d'achat</span>
         </div>
         <div class="table-wrap">
           <table id="positionsTable"></table>

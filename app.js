@@ -107,7 +107,129 @@
   const charts = {};
   let allocKey = 'categorie';
 
-  const currentPrice = (p) => (prices[p.isin] > 0 ? prices[p.isin] : p.lastPrice);
+  // ---------- Cours en direct (Yahoo Finance) ----------
+  // quotes[isin] = { price, prevClose, time, currency, monthly: { 'AAAA-MM': clôture en EUR } }
+  const quotes = {};
+  const fx = {}; // fx['USD'] = { rate, monthly }
+  const yahooUrl = (s, q) => `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s)}?${q}`;
+  const SOURCES = [
+    { name: 'serveur local', url: (s, q) => `api/chart/${encodeURIComponent(s)}?${q}`, skip: () => location.protocol === 'file:' },
+    { name: 'Yahoo direct', url: yahooUrl },
+    { name: 'proxy corsproxy.io', url: (s, q) => `https://corsproxy.io/?url=${encodeURIComponent(yahooUrl(s, q))}` },
+    { name: 'proxy allorigins', url: (s, q) => `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl(s, q))}` },
+  ];
+  let preferredSource = 0;
+  let lastSourceName = '';
+  let refreshTimer = null;
+  let refreshing = false;
+
+  async function fetchChart(symbol, query) {
+    const order = SOURCES.map((_, i) => (preferredSource + i) % SOURCES.length);
+    for (const i of order) {
+      const src = SOURCES[i];
+      if (src.skip && src.skip()) continue;
+      try {
+        const ctrl = new AbortController();
+        const to = setTimeout(() => ctrl.abort(), 8000);
+        const res = await fetch(src.url(symbol, query), { signal: ctrl.signal, cache: 'no-store' });
+        clearTimeout(to);
+        if (!res.ok) continue;
+        const json = await res.json();
+        const r = json && json.chart && json.chart.result && json.chart.result[0];
+        if (!r || !r.meta) continue;
+        preferredSource = i;
+        lastSourceName = src.name;
+        return r;
+      } catch (e) { /* source suivante */ }
+    }
+    return null;
+  }
+
+  function parseChart(r) {
+    const meta = r.meta;
+    const ts = r.timestamp || [];
+    const closes = (r.indicators && r.indicators.quote && r.indicators.quote[0] && r.indicators.quote[0].close) || [];
+    const days = [];
+    ts.forEach((t, i) => { if (closes[i] != null) days.push({ d: new Date(t * 1000).toISOString().slice(0, 10), c: closes[i] }); });
+    const monthly = {};
+    days.forEach((x) => { monthly[monthKey(x.d)] = x.c; });
+    const price = meta.regularMarketPrice != null ? meta.regularMarketPrice : (days.length ? days[days.length - 1].c : null);
+    const mDay = meta.regularMarketTime ? new Date(meta.regularMarketTime * 1000).toISOString().slice(0, 10) : null;
+    const before = days.filter((x) => !mDay || x.d < mDay);
+    const prevClose = before.length ? before[before.length - 1].c : (meta.chartPreviousClose || meta.previousClose || null);
+    let currency = meta.currency || 'EUR';
+    let factor = 1;
+    if (currency === 'GBp' || currency === 'GBX') { currency = 'GBP'; factor = 0.01; }
+    if (factor !== 1) Object.keys(monthly).forEach((k) => { monthly[k] *= factor; });
+    return { price: price != null ? price * factor : null, prevClose: prevClose != null ? prevClose * factor : null,
+      time: meta.regularMarketTime ? meta.regularMarketTime * 1000 : Date.now(), currency, monthly, name: meta.longName || meta.shortName };
+  }
+
+  async function ensureFx(cur, full) {
+    if (cur === 'EUR' || (fx[cur] && !full)) return fx[cur];
+    const r = await fetchChart(`${cur}EUR=X`, full ? 'range=5y&interval=1d' : 'range=5d&interval=1d');
+    if (r) {
+      const q = parseChart(r);
+      fx[cur] = { rate: q.price, monthly: Object.assign((fx[cur] && fx[cur].monthly) || {}, q.monthly) };
+    }
+    return fx[cur];
+  }
+
+  async function loadQuote(p, full) {
+    if (!p.yahoo) return false;
+    const r = await fetchChart(p.yahoo, full ? 'range=5y&interval=1d' : 'range=5d&interval=1d');
+    if (!r) return false;
+    const q = parseChart(r);
+    if (q.price == null) return false;
+    if (q.currency !== 'EUR') {
+      const f = await ensureFx(q.currency, full);
+      if (!f || !f.rate) return false;
+      q.price *= f.rate;
+      if (q.prevClose != null) q.prevClose *= f.rate;
+      Object.keys(q.monthly).forEach((k) => { q.monthly[k] *= (f.monthly[k] || f.rate); });
+    }
+    const old = quotes[p.isin];
+    if (old && !full) q.monthly = old.monthly; // conserve l'historique déjà chargé
+    quotes[p.isin] = q;
+    return true;
+  }
+
+  async function refreshQuotes(full) {
+    if (refreshing || !positions.length) return;
+    refreshing = true;
+    setLiveStatus('loading', 'Mise à jour des cours…');
+    // en mode léger on ne rafraîchit que les lignes ouvertes ; en mode complet aussi les soldées (historique)
+    const list = positions.filter((p) => full || p.qty > 0);
+    await Promise.all(list.map((p) => loadQuote(p, full || !quotes[p.isin]).catch(() => false)));
+    refreshing = false;
+    const open = positions.filter((p) => p.qty > 0);
+    const live = open.filter((p) => quotes[p.isin]).length;
+    const t = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    if (live === open.length && live > 0) setLiveStatus('ok', `Cours en direct · ${t}`, `Source : Yahoo Finance via ${lastSourceName}`);
+    else if (live > 0) setLiveStatus('partial', `${live}/${open.length} cours en direct · ${t}`, `Source : Yahoo Finance via ${lastSourceName}. Lignes sans cotation : ` + open.filter((p) => !quotes[p.isin]).map((p) => p.ticker).join(', '));
+    else setLiveStatus('err', 'Cours indisponibles', 'Impossible de joindre Yahoo Finance. Lancez « python3 server.py » puis ouvrez http://localhost:8000');
+    refreshValuation(true);
+  }
+
+  function setLiveStatus(state, text, title) {
+    const el = $('#liveStatus');
+    el.className = 'live ' + state;
+    $('#liveText').textContent = text;
+    el.title = title || text;
+  }
+
+  function startAutoRefresh() {
+    clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => { if (!document.hidden) refreshQuotes(false); }, 60000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshQuotes(false); });
+  }
+
+  const priceSource = (p) => (quotes[p.isin] ? 'live' : prices[p.isin] > 0 ? 'manual' : 'buy');
+  const currentPrice = (p) => (quotes[p.isin] ? quotes[p.isin].price : prices[p.isin] > 0 ? prices[p.isin] : p.lastPrice);
+  const dayChange = (p) => {
+    const q = quotes[p.isin];
+    return q && q.prevClose ? (q.price - q.prevClose) * p.qty : null;
+  };
 
   function load(csvText) {
     ops = parseCSV(csvText);
@@ -128,10 +250,15 @@
   function renderKpis() {
     const t = totals();
     const total = t.latent + t.realized;
+    const changes = t.open.map(dayChange).filter((v) => v != null);
+    const day = changes.reduce((s, v) => s + v, 0);
+    const dayBase = t.value - day;
     const first = ops[0] ? new Date(ops[0].date).toLocaleDateString('fr-FR') : '–';
     $('#subtitle').textContent = `${ops.length} opérations depuis le ${first}`;
     $('#kpis').innerHTML = [
-      kpi('Valeur du portefeuille', eur.format(t.value), `${t.open.length} lignes en portefeuille`),
+      kpi('Valeur du portefeuille', eur.format(t.value), changes.length
+        ? `<span class="${cls(day)}">${signed(day)} (${dayBase ? pct(day / dayBase) : '–'})</span> aujourd'hui`
+        : `${t.open.length} lignes en portefeuille`),
       kpi('Montant investi (PRU)', eur.format(t.cost), `Apport net : ${eur.format(t.deposits)}`),
       kpi('Plus-value latente', `<span class="${cls(t.latent)}">${signed(t.latent)}</span>`,
         `<span class="${cls(t.latent)}">${t.cost ? pct(t.latent / t.cost) : '–'}</span>`),
@@ -159,7 +286,7 @@
     const lastOp = monthKey(ops[ops.length - 1].date);
     const months = monthRange(monthKey(ops[0].date), nowKey > lastOp ? nowKey : lastOp);
     const qty = {}, last = {};
-    let invested = 0, i = 0;
+    let invested = 0, i = 0, usedMarket = 0;
     const res = { months, invested: [], value: [], buys: [], sells: [] };
     months.forEach((mk, idx) => {
       let buys = 0, sells = 0;
@@ -175,13 +302,16 @@
       for (const isin in qty) {
         if (qty[isin] <= 1e-9) continue;
         const p = positions.find((x) => x.isin === isin);
-        v += qty[isin] * (isLast && p ? currentPrice(p) : last[isin]);
+        const close = quotes[isin] && quotes[isin].monthly[mk];
+        if (close) usedMarket++;
+        v += qty[isin] * (isLast && p ? currentPrice(p) : close || last[isin]);
       }
       res.invested.push(+invested.toFixed(2));
       res.value.push(+v.toFixed(2));
       res.buys.push(+buys.toFixed(2));
       res.sells.push(+(-sells).toFixed(2));
     });
+    res.market = usedMarket > 0;
     return res;
   }
 
@@ -209,6 +339,9 @@
   function renderHistory() {
     const h = buildHistory();
     const labels = h.months.map(monthLabel);
+    $('#historyNote').textContent = h.market
+      ? 'Valorisation fin de mois aux cours de clôture Yahoo Finance · mois en cours au cours en direct'
+      : 'Valeur estimée au dernier prix d\'achat connu (cours historiques indisponibles)';
     const c1 = css('--c1'), c8 = css('--c8');
     setChart('historyChart', {
       type: 'line',
@@ -274,13 +407,20 @@
       const cp = currentPrice(p);
       const val = p.qty * cp;
       const pv = val - p.cost;
-      const edited = prices[p.isin] > 0;
+      const src = priceSource(p);
+      const q = quotes[p.isin];
+      const dc = dayChange(p);
+      const dcPct = q && q.prevClose ? q.price / q.prevClose - 1 : null;
+      const title = src === 'live'
+        ? `Cours Yahoo Finance (${p.yahoo}) · ${new Date(q.time).toLocaleString('fr-FR')}`
+        : src === 'manual' ? 'Cours saisi manuellement' : `Dernier prix d'achat connu (${p.lastDate})`;
       return `<tr>
         <td><div class="name"><strong>${esc(p.ticker)}</strong><small>${esc(p.nom)}</small></div></td>
         <td class="left"><span class="badge">${esc(p.categorie)}</span></td>
         <td>${num(p.qty, p.qty % 1 ? 4 : 0)}</td>
         <td>${eur.format(p.cost / p.qty)}</td>
-        <td><input class="price-input ${edited ? 'edited' : ''}" type="number" step="0.01" min="0" data-isin="${esc(p.isin)}" value="${cp.toFixed(cp < 10 ? 4 : 2)}" title="${edited ? 'Cours saisi manuellement' : 'Dernier prix d\'achat connu (' + p.lastDate + ')'}"></td>
+        <td><span class="price-cell"><span class="src ${src}-src">●</span><input class="price-input ${src === 'manual' ? 'edited' : src === 'live' ? 'live-price' : ''}" type="number" step="0.01" min="0" data-isin="${esc(p.isin)}" value="${cp.toFixed(cp < 10 ? 4 : 2)}" title="${esc(title)}" ${src === 'live' ? 'readonly' : ''}></span></td>
+        <td class="${dc != null ? cls(dc) : 'muted'}">${dcPct != null ? pct(dcPct) : '–'}</td>
         <td>${eur.format(p.cost)}</td>
         <td><strong>${eur.format(val)}</strong></td>
         <td class="${cls(pv)}">${signed(pv)}</td>
@@ -289,9 +429,9 @@
       </tr>`;
     }).join('');
     $('#positionsTable').innerHTML = `
-      <thead><tr><th>Ligne</th><th class="left">Catégorie</th><th>Qté</th><th>PRU</th><th>Cours actuel</th><th>Investi</th><th>Valeur</th><th>+/- value</th><th>Perf.</th><th>Poids</th></tr></thead>
+      <thead><tr><th>Ligne</th><th class="left">Catégorie</th><th>Qté</th><th>PRU</th><th>Cours</th><th>Var. jour</th><th>Investi</th><th>Valeur</th><th>+/- value</th><th>Perf.</th><th>Poids</th></tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr><td>Total</td><td></td><td></td><td></td><td><button class="btn ghost" id="resetPrices" style="font-size:12px;padding:3px 8px">Réinitialiser</button></td>
+      <tfoot><tr><td>Total</td><td></td><td></td><td></td><td><button class="btn ghost" id="resetPrices" style="font-size:12px;padding:3px 8px" title="Effacer les cours saisis à la main">Réinitialiser</button></td><td></td>
         <td>${eur.format(t.cost)}</td><td>${eur.format(t.value)}</td>
         <td class="${cls(t.latent)}">${signed(t.latent)}</td><td class="${cls(t.latent)}">${t.cost ? pct(t.latent / t.cost) : '–'}</td><td>100 %</td></tr></tfoot>`;
 
@@ -507,6 +647,7 @@
     $('#positionsTable').addEventListener('click', (e) => {
       if (e.target.id === 'resetPrices') { prices = {}; refreshValuation(); }
     });
+    $('#refreshQuotes').addEventListener('click', () => refreshQuotes(false));
 
     $('#opSearch').addEventListener('input', renderOps);
     $('#opType').addEventListener('change', renderOps);
@@ -518,6 +659,7 @@
       reader.onload = () => {
         try {
           load(reader.result);
+          refreshQuotes(true);
           try { localStorage.setItem(LS_CSV, reader.result); } catch (err) { /* trop gros ou indisponible */ }
         } catch (err) {
           alert('Impossible de lire ce fichier : ' + err.message);
@@ -541,6 +683,8 @@
     catch (e) { load(window.DEFAULT_CSV); }
     initProjection();
     renderProjection();
+    refreshQuotes(true);
+    startAutoRefresh();
   }
 
   if (typeof Chart === 'undefined') {

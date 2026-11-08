@@ -4,8 +4,25 @@ Application web (HTML/JS, sans installation) de suivi de portefeuille boursier �
 
 ## Lancer
 
-Ouvrir `index.html` dans un navigateur (ou `python3 -m http.server` puis http://localhost:8000).
-Une connexion internet est nécessaire pour charger Chart.js depuis le CDN.
+```bash
+python3 server.py        # puis ouvrir http://localhost:8000
+```
+
+Le petit serveur (Python standard, aucune dépendance) sert l'application et relaie les cours
+**Yahoo Finance** : les navigateurs ne peuvent pas interroger Yahoo directement (restriction CORS).
+
+Ouvrir directement `index.html` fonctionne aussi : l'application tente alors Yahoo via des proxys
+publics (corsproxy.io, allorigins), moins fiables. Sans cours disponibles, elle utilise les cours saisis
+à la main, sinon le dernier prix d'achat.
+
+## Cours en direct
+
+- Cours récupérés au chargement puis **toutes les 60 s** (et au retour sur l'onglet), bouton ↻ pour forcer.
+- Indicateur dans l'en-tête : vert = toutes les lignes cotées, orange = partiel, rouge = indisponible.
+- Variation du jour par ligne et pour le portefeuille.
+- Le graphique d'évolution utilise les **clôtures de fin de mois** Yahoo (5 ans d'historique) ;
+  conversion automatique en euros pour les titres cotés en devise (ex. EVO.ST en SEK).
+- Le symbole utilisé est la colonne `symbole_yahoo` du CSV.
 
 ## Onglets
 
