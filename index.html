@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Suivi PEA</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>Suivi PEA</h1>
+      <span class="muted" id="subtitle">Fortuneo</span>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="suivi" role="tab">Suivi</button>
+      <button class="tab" data-tab="projection" role="tab">Projection DCA</button>
+      <button class="tab" data-tab="operations" role="tab">Opérations</button>
+    </nav>
+    <label class="btn file-btn" title="Charger un autre fichier CSV d'opérations">
+      Importer un CSV
+      <input type="file" id="csvInput" accept=".csv,text/csv" hidden>
+    </label>
+  </header>
+
+  <main>
+    <!-- ===== SUIVI ===== -->
+    <section id="tab-suivi" class="tab-panel active">
+      <div class="kpis" id="kpis"></div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Évolution du portefeuille</h2>
+          <span class="muted small">Valeur estimée au dernier prix connu de chaque ligne, cours actuels pour le mois en cours</span>
+        </div>
+        <div class="chart-box tall"><canvas id="historyChart"></canvas></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head">
+            <h2>Répartition</h2>
+            <div class="seg" id="allocSeg">
+              <button class="active" data-key="categorie">Catégorie</button>
+              <button data-key="zone_geo">Zone</button>
+              <button data-key="ticker">Ligne</button>
+            </div>
+          </div>
+          <div class="chart-box"><canvas id="allocChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Investissements mensuels</h2></div>
+          <div class="chart-box"><canvas id="flowChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Positions en portefeuille</h2>
+          <span class="muted small">Saisissez le cours actuel de chaque ligne : il est sauvegardé dans le navigateur</span>
+        </div>
+        <div class="table-wrap">
+          <table id="positionsTable"></table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Positions soldées</h2></div>
+        <div class="table-wrap">
+          <table id="closedTable"></table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== PROJECTION ===== -->
+    <section id="tab-projection" class="tab-panel">
+      <div class="card">
+        <div class="card-head"><h2>Paramètres de projection</h2></div>
+        <div class="controls">
+          <div class="control">
+            <label for="dcaRange">DCA mensuel</label>
+            <div class="control-row">
+              <input type="range" id="dcaRange" min="0" max="2000" step="10">
+              <div class="num"><input type="number" id="dcaInput" min="0" step="10"><span>€</span></div>
+            </div>
+            <div class="presets" data-target="dca">
+              <button data-v="50">50</button><button data-v="100">100</button><button data-v="200">200</button><button data-v="500">500</button><button data-v="1000">1000</button>
+            </div>
+          </div>
+          <div class="control">
+            <label for="rateRange">Rendement annuel</label>
+            <div class="control-row">
+              <input type="range" id="rateRange" min="-5" max="20" step="0.5">
+              <div class="num"><input type="number" id="rateInput" min="-20" max="50" step="0.1"><span>%</span></div>
+            </div>
+            <div class="presets" data-target="rate">
+              <button data-v="3">3 %</button><button data-v="5">5 %</button><button data-v="7">7 %</button><button data-v="8">8 %</button><button data-v="10">10 %</button>
+            </div>
+          </div>
+          <div class="control">
+            <label for="yearsRange">Durée</label>
+            <div class="control-row">
+              <input type="range" id="yearsRange" min="1" max="40" step="1">
+              <div class="num"><input type="number" id="yearsInput" min="1" max="60" step="1"><span>ans</span></div>
+            </div>
+            <div class="presets" data-target="years">
+              <button data-v="5">5</button><button data-v="10">10</button><button data-v="15">15</button><button data-v="20">20</button><button data-v="30">30</button>
+            </div>
+          </div>
+          <div class="control">
+            <label for="startInput">Capital de départ</label>
+            <div class="control-row">
+              <div class="num wide"><input type="number" id="startInput" min="0" step="10"><span>€</span></div>
+              <button class="btn ghost" id="startReset" title="Reprendre la valeur actuelle du portefeuille">Valeur actuelle</button>
+            </div>
+            <p class="muted small" id="dcaHint"></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="kpis" id="projKpis"></div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Projection du capital</h2>
+          <span class="muted small">Intérêts composés mensuels · zone = rendement ±2 pts</span>
+        </div>
+        <div class="chart-box tall"><canvas id="projChart"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Détail année par année</h2></div>
+        <div class="table-wrap"><table id="projTable"></table></div>
+      </div>
+      <p class="muted small disclaimer">Simulation indicative à rendement constant, hors frais et fiscalité. Les performances passées ne préjugent pas des performances futures.</p>
+    </section>
+
+    <!-- ===== OPERATIONS ===== -->
+    <section id="tab-operations" class="tab-panel">
+      <div class="card">
+        <div class="card-head">
+          <h2>Historique des opérations</h2>
+          <div class="filters">
+            <input type="search" id="opSearch" placeholder="Rechercher (nom, ticker, ISIN)…">
+            <select id="opType">
+              <option value="">Tous types</option>
+              <option value="Achat">Achats</option>
+              <option value="Vente">Ventes</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="opsTable"></table></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
